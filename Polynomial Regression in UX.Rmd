@@ -1,0 +1,92 @@
+---
+title: "Polynomial Regression in UX"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(ggplot2)
+library(broom)
+library(MASS)  # for rlm
+library(performance)  # for model diagnostics
+set.seed(123)
+```
+
+## Simulate Data: Font Size vs Readability
+```{r simulate-data}
+n <- 100
+font_size <- runif(n, 8, 24)  # font sizes from 8 to 24 pt
+
+
+readability <- -0.25 * (font_size - 16)^2 + 7 + rnorm(n, 0, 2)  # increased variability
+
+# simulate user-level random noise (e.g. distraction, fatigue)
+user_noise <- rnorm(n, 0, 1.5)
+readability <- readability + user_noise
+
+# add outliers (e.g. extreme conditions, tech failures)
+outlier_indices <- sample(1:n, 7)
+readability[outlier_indices] <- readability[outlier_indices] + rnorm(7, 5, 3)
+
+ux_data <- tibble(font_size = font_size, readability = readability)
+```
+
+## Plot Raw Data
+```{r plot-raw-data}
+ggplot(ux_data, aes(x = font_size, y = readability)) +
+  geom_point() +
+  labs(title = "Font Size vs. Readability", x = "Font Size (pt)", y = "Readability Score") +
+  theme_minimal()
+ggsave("font_size_readability_scatter.png", width = 6, height = 4)
+```
+
+## Fit Linear Model
+```{r fit-linear}
+linear_model <- lm(readability ~ font_size, data = ux_data)
+
+ggplot(ux_data, aes(x = font_size, y = readability)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
+  labs(title = "Linear Model Fit", x = "Font Size", y = "Readability") +
+  theme_minimal()
+ggsave("linear_model_fit.png", width = 6, height = 4)
+```
+
+## Residual Plot
+```{r plot-residuals}
+resid_data <- augment(linear_model)
+
+ggplot(resid_data, aes(x = .fitted, y = .resid)) +
+  geom_point() +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  labs(title = "Residuals of Linear Model", x = "Fitted Values", y = "Residuals") +
+  theme_minimal()
+ggsave("linear_model_residuals.png", width = 6, height = 4)
+```
+
+## Fit Polynomial Model
+```{r fit-polynomial}
+ux_data <- ux_data %>% mutate(font_size_sq = (font_size - mean(font_size))^2)
+poly_model <- lm(readability ~ font_size + font_size_sq, data = ux_data)
+
+ggplot(ux_data, aes(x = font_size, y = readability)) +
+  geom_point() +
+  geom_smooth(method = "lm", formula = y ~ x + I((x - mean(x))^2), se = FALSE, color = "blue") +
+  labs(title = "Polynomial Model Fit", x = "Font Size", y = "Readability") +
+  theme_minimal()
+ggsave("polynomial_model_fit.png", width = 6, height = 4)
+```
+
+## Compare Models
+```{r compare-models}
+broom::glance(linear_model)
+broom::glance(poly_model)
+```
+
+## Robust Regression Model
+```{r robust-model}
+robust_model <- rlm(readability ~ font_size + font_size_sq, data = ux_data)
+summary(robust_model)
+```
+
+
